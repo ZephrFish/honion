@@ -27,6 +27,34 @@ REPS=${REPS:-10}
 CSV=$S/results.csv
 RAPL=/sys/class/powercap/intel-rapl:0
 
+# Check the binaries before measuring anything, not after. run_one backgrounds
+# its tool and counts the keys that appear on disk, so a path pointing at
+# nothing produces a "command not found" nobody sees, zero keys, and a row
+# recording a rate of zero -- indistinguishable in the CSV from a tool that ran
+# and found nothing. A measurement that cannot be trusted must fail, not be
+# written down.
+missing=0
+for spec in "mkp224o:$MK" "honion:$HO" "prefix32:$P32"; do
+  name=${spec%%:*}
+  path=${spec#*:}
+  if [ ! -x "$path" ]; then
+    echo "study.sh: $name is missing or not executable: $path" >&2
+    missing=1
+  fi
+done
+if [ "$missing" -ne 0 ]; then
+  cat >&2 <<'USAGE'
+
+Point the script at your builds, for example:
+
+  HONION_BENCH_DIR=/path/to/comparison-tools \
+  HONION_BIN=/path/to/honion/target/release/honion \
+    bench/study.sh
+
+USAGE
+  exit 1
+fi
+
 echo "tool,rep,filter,bits,hits,seconds,addr_per_sec,gpu_watts,cpu_watts" > $CSV
 
 rapl_uj() { sudo -n cat $RAPL/energy_uj 2>/dev/null || echo 0; }
